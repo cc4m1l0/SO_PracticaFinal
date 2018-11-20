@@ -25,7 +25,7 @@
 FatHelper::FatHelper(string nombrearchivo_)
     : strange(0),
     nombrearchivo(nombrearchivo_),
-    totalSize(-1),
+    tamanoTotal(-1),
     listarEliminados(false),
     statsComputed(false),
     freeClusters(0),
@@ -53,8 +53,8 @@ FatHelper::~FatHelper()
  */
 int FatHelper::leerInformacion(unsigned long long address, char *buffer, int size)
 {
-    if (totalSize != -1 && address+size > totalSize) {
-        cerr << "! Trying to read outside the disk" << endl;
+    if (tamanoTotal != -1 && address+size > tamanoTotal) {
+        cerr << "! Intentando leer fuera del disco" << endl;
     }
 
     lseek64(fd, address, SEEK_SET);
@@ -74,7 +74,7 @@ int FatHelper::leerInformacion(unsigned long long address, char *buffer, int siz
 }
 
 /**
- * Parses FAT header
+ * Leyendo Boot Sector y estructura BPB
  */
 void FatHelper::leerBS_BPB()
 {
@@ -160,7 +160,7 @@ bool FatHelper::iniciar()
     fatStart = bpb_BytsPerSec*bpb_RsvdSecCnt;
     dataStart = fatStart + bpb_NumFATs*bpb_FATSz*bpb_BytsPerSec;
     bytesPerCluster = bpb_BytsPerSec*bpb_SecPerClus;
-    totalSize = bpb_TotSec*bpb_BytsPerSec;
+    tamanoTotal = bpb_TotSec*bpb_BytsPerSec;
     fatSize = bpb_FATSz*bpb_BytsPerSec;
     totalClusters = (fatSize*8)/bits;
     dataSize = totalClusters*bytesPerCluster;
@@ -198,7 +198,7 @@ void FatHelper::informacion()
     cout << "Número total de sectores: " << bpb_TotSec << endl;
     cout << "Número total de clusters: " << totalClusters << endl;
     cout << "Tamaño de datos: " << dataSize << " (" << prettySize(dataSize) << ")" << endl;
-    cout << "Tamaño del disco: " << totalSize << " (" << prettySize(totalSize) << ")" << endl;
+    cout << "Tamaño del disco: " << tamanoTotal << " (" << prettySize(tamanoTotal) << ")" << endl;
     cout << "Cantidad de Bytes por cluster: " << bytesPerCluster << endl;
     if (tipo == FAT16) {
         cout << "Número de entradas en la Raiz: " << bpb_RootEntCnt << endl;
@@ -208,7 +208,7 @@ void FatHelper::informacion()
     printf("FAT1 dirección de inicio: %016llx\n", fatStart);
     printf("FAT2 dirección de inicio: %016llx\n", fatStart+fatSize);
     printf("Data dirección de inicio: %016llx\n", dataStart);
-    cout << "Root directory cluster: " << rootDirectory << endl;
+    cout << "Número de directorios en la raiz del cluster: " << rootDirectory << endl;
     cout << endl;
 }
 

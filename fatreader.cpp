@@ -14,13 +14,13 @@ void ayuda()
     cout << "Lector FAT construido para la práctica final de Sistemas Operativos 2018-2" << endl;
     cout << "Construido por:" << endl;
     cout << "Christian Barrero  - 201117501010" << endl;
-    cout << "Ivan Vargas - " << endl;
+    cout << "Ivan Vargas - 201410005010" << endl;
     cout << endl;
     cout << "Uso: ./a.out nombrearchivo.img [opciones]" << endl;
     cout << endl;
     cout << "Listado de opciones:" << endl;
     cout << "  -i: Muestra información general acerca del disco" << endl;
-    cout << "  -l [dir]: Litar los archivos y directorios en la ruta seleccionada" << endl;
+    cout << "  -l [dir]: Listar los archivos y directorios en la ruta seleccionada" << endl;
     cout << "  -d: Permite listar los archivos eliminados" << endl;
     exit(EXIT_FAILURE);
 }

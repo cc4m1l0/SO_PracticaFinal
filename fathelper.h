@@ -97,7 +97,7 @@ class FatHelper
         unsigned long long fatStart;
         unsigned long long dataStart;
         unsigned long long bytesPerCluster;
-        unsigned long long totalSize;
+        unsigned long long tamanoTotal;
         unsigned long long dataSize;
         unsigned long long fatSize;
         unsigned long long totalClusters;

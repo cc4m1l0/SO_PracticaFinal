@@ -27,21 +27,21 @@ static inline std::string trim(std::string s) {
         return ltrim(rtrim(s));
 }
 
-static char units[] = {'B', 'K', 'M', 'G', 'T', 'P'};
+static char unidades[] = {'B', 'K', 'M', 'G', 'T', 'P'};
 
 // Mejorar la lectura de los tamaños
 static inline string prettySize(unsigned long long bytes)
 {
-    double size = bytes;
+    double tamano = bytes;
     int n = 0;
 
-    while (size >= 1024) {
-        size /= 1024;
+    while (tamano >= 1024) {
+        tamano /= 1024;
         n++;
     }
 
     ostringstream oss;
-    oss << size << units[n];
+    oss << tamano << unidades[n];
 
     return oss.str();
 }
