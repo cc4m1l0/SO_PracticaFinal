@@ -90,6 +90,9 @@ int main(int argc, char *argv[])
                 fathelper.informacion();
             } else if (listarDirectorios) {
                 cout << "Listando la ruta " << rutaListar << endl;
+                if(listarEliminados) {
+                    cout << "*se mostrarán los archivos eliminados" << endl;
+                }
                 fathelper.listar(rutaListar);
             }
         } else {

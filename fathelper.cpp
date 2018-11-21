@@ -12,12 +12,7 @@
 
 #include <FatUtils.h>
 #include "fathelper.h"
-
-// Utils
-#define FAT_READ_SHORT(buffer,x) ((buffer[x]&0xff)|((buffer[x+1]&0xff)<<8))
-#define FAT_READ_LONG(buffer,x) \
-        ((buffer[x]&0xff)|((buffer[x+1]&0xff)<<8))| \
-        (((buffer[x+2]&0xff)<<16)|((buffer[x+3]&0xff)<<24))
+#include "fatentry.h"
 
 /**
  * Opens the FAT resource
@@ -37,7 +32,7 @@ FatHelper::FatHelper(string nombrearchivo_)
 
     if (fd < 0) {
         ostringstream oss;
-        oss << "! Unable to open the input file: " << nombrearchivo << " for reading";
+        oss << "! No se a podido abrir el archivo: " << nombrearchivo << ". Asegurate que exista y que hayas escrito bien la ruta al archivo.";
 
         throw oss.str();
     }
@@ -100,7 +95,7 @@ void FatHelper::leerBS_BPB()
         bs_VolLab = string(buffer+BS_VOLLAB16, BS_VOLLAB16_SIZE);
         bs_FilSysType = string(buffer+BS_FILSYSTYPE16, BS_FILSYSTYPE16_SIZE);
         bpb_RootEntCnt = FAT_READ_SHORT(buffer, BPB_ROOTENTCNT)&0xffff;
-        rootDirectory = 0;
+        directorioRaiz = 0;
 
         if (trim(bs_FilSysType) == "FAT12") {
             bits = 12;
@@ -117,7 +112,7 @@ void FatHelper::leerBS_BPB()
         bpb_TotSec = FAT_READ_LONG(buffer, BPB_TOTSEC32)&0xffffffff;
         bs_VolID = FAT_READ_LONG(buffer, BS_VOLID32)&0xffffffff;
         bs_VolLab = string(buffer+BS_VOLLAB32, BS_VOLLAB32_SIZE);
-        rootDirectory = FAT_READ_LONG(buffer, FAT_ROOT_DIRECTORY)&0xffffffff;
+        directorioRaiz = FAT_READ_LONG(buffer, FAT_ROOT_DIRECTORY)&0xffffffff;
         bs_FilSysType = string(buffer+BS_FILSYSTYPE32, BS_FILSYSTYPE32_SIZE);
     }
 
@@ -136,19 +131,10 @@ void FatHelper::leerBS_BPB()
         strange++;
     }
 
-    if (rootDirectory != 2 && tipo == FAT32) {
-        printf("ADVERTENCIA: El directorio raiz no es 2 (%llu)\n", rootDirectory);
+    if (directorioRaiz != 2 && tipo == FAT32) {
+        printf("ADVERTENCIA: El directorio raiz no es 2 (%llu)\n", directorioRaiz);
         strange++;
     }
-}
-
-void FatHelper::listar(string path)
-{
-    // FatEntry entry;
-
-    /*if (findDirectory(path, entry)) {
-        list(entry.cluster);
-    }*/
 }
 
 bool FatHelper::iniciar()
@@ -208,8 +194,310 @@ void FatHelper::informacion()
     printf("FAT1 dirección de inicio: %016llx\n", fatStart);
     printf("FAT2 dirección de inicio: %016llx\n", fatStart+fatSize);
     printf("Data dirección de inicio: %016llx\n", dataStart);
-    cout << "Número de directorios en la raiz del cluster: " << rootDirectory << endl;
+    cout << "Número de directorios en la raiz del cluster: " << directorioRaiz << endl;
     cout << endl;
+}
+
+void FatHelper::listar(string path)
+{
+    FatEntry entry;
+
+    if (encontrarDirectorio(path, entry)) {
+        listar(entry.cluster);
+    }
+}
+
+void FatHelper::listar(unsigned int cluster)
+{
+    bool hasFree = false;
+    vector<FatEntry> entries = getEntries(cluster, NULL, &hasFree);
+    printf("Cluster de directorios: %u\n", cluster);
+    if (hasFree) {
+        printf("Advertencia: este directorio tiene clústeres libres que se leen de forma contigua\n");
+    }
+    printf("# Entries: %zu\n", entries.size());
+    listar(entries);
+}
+
+void FatHelper::listar(vector<FatEntry> &entries)
+{
+    vector<FatEntry>::iterator it;
+
+    for (it=entries.begin(); it!=entries.end(); it++) {
+        FatEntry &entry = *it;
+
+        if (entry.isErased() && !listarEliminados) {
+            continue;
+        }
+
+        if (entry.isDirectory()) {
+            printf("dir");
+        } else {
+            printf("arc");
+        }
+
+        string name = entry.getFilename();
+        if (entry.isDirectory()) {
+            name += "/";
+        }
+
+        printf(" %s ", entry.changeDate);
+        printf(" %-30s", name.c_str());
+
+        printf(" c=%u", entry.cluster);
+
+        if (!entry.isDirectory()) {
+            string pretty = prettySize(entry.size);
+            printf(" s=%llu (%s)", entry.size, pretty.c_str());
+        }
+
+        if (entry.isHidden()) {
+            printf(" h");
+        }
+        if (entry.isErased()) {
+            printf(" d");
+        }
+
+        printf("\n");
+        fflush(stdout);
+    }
+}
+
+bool FatHelper::encontrarDirectorio(string path, FatEntry &outputEntry)
+{
+    int cluster;
+    vector<string> parts;
+    split(path, FAT_PATH_DELIMITER, parts);
+    cluster = directorioRaiz;
+    outputEntry.cluster = cluster;
+
+    for (int i=0; i<parts.size(); i++) {
+        if (parts[i] != "") {
+            parts[i] = strtolower(parts[i]);
+            vector<FatEntry> entries = getEntries(cluster);
+            vector<FatEntry>::iterator it;
+            bool found = false;
+
+            for (it=entries.begin(); it!=entries.end(); it++) {
+                FatEntry &entry = *it;
+                string name = entry.getFilename();
+                if (entry.isDirectory() && strtolower(name) == parts[i]) {
+                    outputEntry = entry;
+                    cluster = entry.cluster;
+                    found = true;
+                }
+            }
+
+            if (!found) {
+                cerr << "Error: el directorio " << path << " no se ha encontrado" << endl;
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+vector<FatEntry> FatHelper::getEntries(unsigned int cluster, int *clusters, bool *hasFree)
+{
+    bool isRoot = false;
+    bool contiguous = false;
+    int foundEntries = 0;
+    int badEntries = 0;
+    bool isValid = false;
+    set<unsigned int> visited;
+    vector<FatEntry> entries;
+    string filename;
+
+    if (clusters != NULL) {
+        *clusters = 0;
+    }
+
+    if (hasFree != NULL) {
+        *hasFree = false;
+    }
+
+    if (cluster == 0 && tipo == FAT32) {
+        cluster = directorioRaiz;
+    }
+
+    isRoot = (tipo==FAT16 && cluster==directorioRaiz);
+
+    if (cluster == directorioRaiz) {
+        isValid = true;
+    }
+
+    if (!validCluster(cluster)) {
+        return vector<FatEntry>();
+    }
+
+    do {
+        bool localZero = false;
+        int localFound = 0;
+        int localBadEntries = 0;
+        unsigned long long address = clusterAddress(cluster, isRoot);
+        char buffer[ENTRY_SIZE];
+        if (visited.find(cluster) != visited.end()) {
+            cerr << "! Looping directory" << endl;
+            break;
+        }
+        visited.insert(cluster);
+
+        unsigned int i;
+        for (i=0; i<bytesPerCluster; i+=sizeof(buffer)) {
+            // Reading data
+            leerInformacion(address, buffer, sizeof(buffer));
+
+            // Creating entry
+            FatEntry entry;
+
+            entry.attributes = buffer[FAT_ATTRIBUTES];
+            entry.address = address;
+
+            if (entry.attributes == FAT_ATTRIBUTES_LONGFILE) {
+                // Long file part
+                // filename.append(buffer);
+            } else {
+                entry.shortName = string(buffer, 11);
+                entry.longName = filename;
+                entry.size = FAT_READ_LONG(buffer, FAT_FILESIZE)&0xffffffff;
+                entry.cluster = (FAT_READ_SHORT(buffer, FAT_CLUSTER_LOW)&0xffff) | (FAT_READ_SHORT(buffer, FAT_CLUSTER_HIGH)<<16);
+                entry.setData(string(buffer, sizeof(buffer)));
+
+                if (!entry.isZero()) {
+                    if (entry.isCorrect() && validCluster(entry.cluster)) {
+                        entry.creationDate = &buffer[FAT_CREATION_DATE];
+                        entry.changeDate = &buffer[FAT_CHANGE_DATE];
+                        entries.push_back(entry);
+                        localFound++;
+                        foundEntries++;
+
+                        if (!isValid && entry.getFilename() == "." && entry.cluster == cluster) {
+                            isValid = true;
+                        }
+                    } else {
+                        localBadEntries++;
+                        badEntries++;
+                    }
+
+                    localZero = false;
+                } else {
+                    localZero = true;
+                }
+            }
+
+            address += sizeof(buffer);
+        }
+
+        int previousCluster = cluster;
+
+        if (isRoot) {
+            if (cluster+1 < rootClusters) {
+                cluster++;
+            } else {
+                cluster = FAT_LAST;
+            }
+        } else {
+            cluster = nextCluster(cluster);
+        }
+
+        if (clusters) {
+            (*clusters)++;
+        }
+
+        if (cluster == 0 || contiguous) {
+            contiguous = true;
+
+            if (hasFree != NULL) {
+                *hasFree = true;
+            }
+            if (!localZero && localFound && localBadEntries<localFound) {
+                cluster = previousCluster+1;
+            } else {
+                if (!localFound && clusters) {
+                    (*clusters)--;
+                }
+                break;
+            }
+        }
+
+        if (!isValid) {
+            if (badEntries>foundEntries) {
+                cerr << "! Entries don't look good, this is maybe not a directory" << endl;
+                return vector<FatEntry>();
+          }
+        }
+    } while (cluster != FAT_LAST);
+
+    return entries;
+}
+
+/**
+ * Returns the 32-bit fat value for the given cluster number
+ */
+unsigned int FatHelper::nextCluster(unsigned int cluster, int fat)
+{
+    int bytes = (bits == 32 ? 4 : 2);
+    char buffer[bytes];
+
+    if (!validCluster(cluster)) {
+        return 0;
+    }
+
+    leerInformacion(fatStart+fatSize*fat+(bits*cluster)/8, buffer, sizeof(buffer));
+
+    unsigned int next;
+
+    if (tipo == FAT32) {
+        next = FAT_READ_LONG(buffer, 0)&0x0fffffff;
+
+        if (next >= 0x0ffffff0) {
+            return FAT_LAST;
+        } else {
+            return next;
+        }
+    } else {
+        next = FAT_READ_SHORT(buffer,0)&0xffff;
+
+        if (bits == 12) {
+            int bit = cluster*bits;
+            if (bit%8 != 0) {
+                next = next >> 4;
+            }
+            next &= 0xfff;
+            if (next >= 0xff0) {
+                return FAT_LAST;
+            } else {
+                return next;
+            }
+        } else {
+            if (next >= 0xfff0) {
+                return FAT_LAST;
+            } else {
+                return next;
+            }
+        }
+    }
+}
+
+bool FatHelper::validCluster(unsigned int cluster)
+{
+    return cluster < totalClusters;
+}
+
+unsigned long long FatHelper::clusterAddress(unsigned int cluster, bool isRoot)
+{
+    if (tipo == FAT32 || !isRoot) {
+        cluster -= 2;
+    }
+
+    unsigned long long addr = (dataStart + bpb_BytsPerSec*bpb_SecPerClus*cluster);
+
+    if (tipo == FAT16 && !isRoot) {
+        addr += bpb_RootEntCnt * ENTRY_SIZE;
+    }
+
+    return addr;
 }
 
 void FatHelper::asignarListarEliminados(bool listarEliminados_)

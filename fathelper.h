@@ -3,12 +3,14 @@
 
 #include <string>
 
+#include "fatentry.h"
+
 using namespace std;
 
 // Last cluster
 #define FAT_LAST (-1)
 
-// Boot sector and BPB
+// Boot sector y estructura BPB
 #define BS_OEMNAME                  0x3
 #define BS_OEMNAME_SIZE             8
 #define BPB_BYTSPERSEC              0x0b
@@ -47,6 +49,8 @@ using namespace std;
 #define FAT32 0
 #define FAT16 1
 
+#define FAT_PATH_DELIMITER '/'
+
 class FatHelper
 {
     public:
@@ -58,11 +62,29 @@ class FatHelper
         void informacion();
         // Listar directorios
         void listar(string path);
+        void listar(unsigned int cluster);
+        void listar(vector<FatEntry> &entries);
+
         // Mostrar archivos borrados al listar una ruta
         void asignarListarEliminados(bool listarEliminados);
 
         // Leer información del sistema
         int leerInformacion(unsigned long long address, char *buffer, int size);
+
+        // Encontrar un directroio
+        bool encontrarDirectorio(string path, FatEntry &entry);
+
+        // Obtener entradas de directorio para un clúster determinado
+        vector<FatEntry> getEntries(unsigned int cluster, int *clusters = NULL, bool *hasFree = NULL);
+
+        // Devuelve el siguiente número de clúster
+        unsigned int nextCluster(unsigned int cluster, int fat=0);
+
+        // El clúster es válido?
+        bool validCluster(unsigned int cluster);
+
+        // Retorna el desplazamiento del cluster en el sistema de archivos
+        unsigned long long clusterAddress(unsigned int cluster, bool isRoot = false);
 
         // Variables de descripción del archivo
         string nombrearchivo;
@@ -86,11 +108,12 @@ class FatHelper
         unsigned long long bs_VolID;
         string bs_VolLab;
         string bs_FilSysType;
-        unsigned long long rootDirectory;
+        unsigned long long directorioRaiz;
         unsigned long long reserved;
         unsigned long long strange;
         unsigned int bits;
 
+        unsigned long long rootEntries;
         unsigned long long rootClusters;
 
         // Computed values

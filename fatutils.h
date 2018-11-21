@@ -9,6 +9,12 @@
 
 using namespace std;
 
+// Utils
+#define FAT_READ_SHORT(buffer,x) ((buffer[x]&0xff)|((buffer[x+1]&0xff)<<8))
+#define FAT_READ_LONG(buffer,x) \
+        ((buffer[x]&0xff)|((buffer[x+1]&0xff)<<8))| \
+        (((buffer[x+2]&0xff)<<16)|((buffer[x+3]&0xff)<<24))
+
 // ayuda aquí https://stackoverflow.com/questions/216823/whats-the-best-way-to-trim-stdstring
 // funcion trim para borrar espacios en blanco de la izquierda
 static inline std::string ltrim(std::string s) {
@@ -46,4 +52,24 @@ static inline string prettySize(unsigned long long bytes)
     return oss.str();
 }
 
+// split a string into vector
+static inline vector<string> &split(const string &s, char delim, vector<string> &elems) {
+    stringstream ss(s);
+    string item;
+    while(getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
+
+// Convierte una cadena string a minúsculas
+static inline std::string strtolower(std::string myString)
+{
+  const int length = myString.length();
+  for(int i=0; i!=length; ++i) {
+    myString[i] = std::tolower(myString[i]);
+  }
+
+  return myString;
+}
 #endif
