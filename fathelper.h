@@ -64,6 +64,11 @@ class FatHelper
         void listar(string path);
         void listar(unsigned int cluster);
         void listar(vector<FatEntry> &entries);
+        // Leer archivo
+        void leer(string path, FILE *f = NULL);
+        void leer(unsigned int cluster, unsigned int size, FILE * f = NULL, bool deleted = false);
+
+
 
         // Mostrar archivos borrados al listar una ruta
         void asignarListarEliminados(bool listarEliminados);
@@ -73,6 +78,7 @@ class FatHelper
 
         // Encontrar un directroio
         bool encontrarDirectorio(string path, FatEntry &entry);
+        bool encontrarArchivo(string path, FatEntry &entry);
 
         // Obtener entradas de directorio para un clúster determinado
         vector<FatEntry> getEntries(unsigned int cluster, int *clusters = NULL, bool *hasFree = NULL);
@@ -82,6 +88,9 @@ class FatHelper
 
         // El clúster es válido?
         bool validCluster(unsigned int cluster);
+
+        // El clúster está libre?
+        bool freeCluster(unsigned int cluster);
 
         // Retorna el desplazamiento del cluster en el sistema de archivos
         unsigned long long clusterAddress(unsigned int cluster, bool isRoot = false);

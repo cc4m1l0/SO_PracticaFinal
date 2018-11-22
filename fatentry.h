@@ -2,7 +2,7 @@
 #define _FATENTRY_H
 
 #include <string>
-
+// ayuda tomada de https://github.com/Gregwar/fatcat/
 using namespace std;
 
 // Size of a FAT entry

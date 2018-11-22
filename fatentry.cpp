@@ -6,7 +6,7 @@
 
 #include <fatutils.h>
 #include "fatentry.h"
-
+// ayuda tomada de https://github.com/Gregwar/fatcat/
 using namespace std;
 
 FatEntry::FatEntry()

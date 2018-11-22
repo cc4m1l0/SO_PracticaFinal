@@ -22,6 +22,7 @@ void ayuda()
     cout << "  -i: Muestra información general acerca del disco" << endl;
     cout << "  -l [dir]: Listar los archivos y directorios en la ruta seleccionada" << endl;
     cout << "  -d: Permite listar los archivos eliminados" << endl;
+    cout << "  -r [ruta]: Permite leer un archivo en una ruta y guardarlo " << endl;
     exit(EXIT_FAILURE);
 }
 
@@ -41,6 +42,10 @@ int main(int argc, char *argv[])
     // -d, listar archivos eliminados
     bool listarEliminados = false;
 
+    // -r, Leer un archivo
+    bool leerArchivo = false;
+    string rutaLeerArchivo;
+
     // Leyendo argumentos de la linea de comandos
     while ((index = getopt(argc, argv, "il:L:r:R:s:dc:hx:2@:ob:p:w:v:mt:Sze:O:fk:a:")) != -1) {
         switch (index) {
@@ -53,6 +58,10 @@ int main(int argc, char *argv[])
                 break;
             case 'd':
                 listarEliminados = true;
+                break;
+            case 'r':
+                leerArchivo = true;
+                rutaLeerArchivo = string(optarg);
                 break;
             case 'h':
                 ayuda();
@@ -75,7 +84,7 @@ int main(int argc, char *argv[])
     }
 
     // Si el usuario no ha solicitado alguna información
-    if (!(mostrarInformacion || listarDirectorios)) {
+    if (!(mostrarInformacion || listarDirectorios || leerArchivo)) {
         ayuda();
     }
 
@@ -94,6 +103,8 @@ int main(int argc, char *argv[])
                     cout << "*se mostrarán los archivos eliminados" << endl;
                 }
                 fathelper.listar(rutaListar);
+            } else if (leerArchivo) {
+                fathelper.leer(rutaLeerArchivo);
             }
         } else {
             cout << "Error al iniciar el sistema de archivos FAT" << endl;

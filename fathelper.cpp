@@ -14,6 +14,7 @@
 #include "fathelper.h"
 #include "fatentry.h"
 
+// ayuda tomada de https://github.com/Gregwar/fatcat/
 /**
  * Opens the FAT resource
  */
@@ -241,7 +242,6 @@ void FatHelper::listar(vector<FatEntry> &entries)
             name += "/";
         }
 
-        printf(" %s ", entry.changeDate);
         printf(" %-30s", name.c_str());
 
         printf(" c=%u", entry.cluster);
@@ -296,6 +296,106 @@ bool FatHelper::encontrarDirectorio(string path, FatEntry &outputEntry)
     }
 
     return true;
+}
+
+bool FatHelper::encontrarArchivo(string path, FatEntry &outputEntry)
+{
+    bool found = false;
+    vector<string> parts;
+    split(path, FAT_PATH_DELIMITER, parts);
+    string parentdirname = "";
+    for (int i=0; i<parts.size()-1; i++) {
+        parentdirname += parts[i] + "/";
+    }
+    string basename = parts[parts.size()-1];
+
+    basename = strtolower(basename);
+    FatEntry parentEntry;
+    if (encontrarDirectorio(parentdirname, parentEntry)) {
+        vector<FatEntry> entries = getEntries(parentEntry.cluster);
+        vector<FatEntry>::iterator it;
+
+        for (it=entries.begin(); it!=entries.end(); it++) {
+            FatEntry &entry = (*it);
+            if (strtolower(entry.getFilename()) == basename) {
+                outputEntry = entry;
+
+                if (entry.size == 0) {
+                    found = true;
+                } else {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return found;
+}
+
+void FatHelper::leer(string path, FILE *f)
+{
+    FatEntry entry;
+    if (encontrarArchivo(path, entry)) {
+        bool contiguous = false;
+        if (entry.isErased() && freeCluster(entry.cluster)) {
+            fprintf(stderr, "! Este archivo es un archivo que ha sido borrado\n");
+            contiguous = true;
+        }
+        leer(entry.cluster, entry.size, f, contiguous);
+    }
+}
+
+void FatHelper::leer(unsigned int cluster, unsigned int size, FILE *f, bool deleted)
+{
+    bool contiguous = deleted;
+
+    if (f == NULL) {
+        f = stdout;
+    }
+
+    while ((size!=0) && cluster!=FAT_LAST) {
+        int currentCluster = cluster;
+        int toRead = size;
+        if (toRead > bytesPerCluster || size < 0) {
+            toRead = bytesPerCluster;
+        }
+        char buffer[bytesPerCluster];
+        leerInformacion(clusterAddress(cluster), buffer, toRead);
+
+        if (size != -1) {
+            size -= toRead;
+        }
+
+        // Write file data to the given file
+        fwrite(buffer, toRead, 1, f);
+        fflush(f);
+
+        if (contiguous) {
+            if (deleted) {
+                do {
+                    cluster++;
+                } while (!freeCluster(cluster));
+            } else {
+                if (!freeCluster(cluster)) {
+                    fprintf(stderr, "! Contiguous file contains cluster that seems allocated\n");
+                    fprintf(stderr, "! Trying to disable contiguous mode\n");
+                    contiguous = false;
+                    cluster = nextCluster(cluster);
+                } else {
+                    cluster++;
+                }
+            }
+        } else {
+            cluster = nextCluster(currentCluster);
+
+            if (cluster == 0) {
+                fprintf(stderr, "! One of your file's cluster is 0 (maybe FAT is broken, have a look to -2 and -m)\n");
+                fprintf(stderr, "! Trying to enable contigous mode\n");
+                contiguous = true;
+                cluster = currentCluster+1;
+            }
+        }
+    }
 }
 
 vector<FatEntry> FatHelper::getEntries(unsigned int cluster, int *clusters, bool *hasFree)
@@ -498,6 +598,11 @@ unsigned long long FatHelper::clusterAddress(unsigned int cluster, bool isRoot)
     }
 
     return addr;
+}
+
+bool FatHelper::freeCluster(unsigned int cluster)
+{
+    return nextCluster(cluster) == 0;
 }
 
 void FatHelper::asignarListarEliminados(bool listarEliminados_)
