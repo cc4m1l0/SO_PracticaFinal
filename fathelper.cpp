@@ -10,7 +10,7 @@
 #include <sys/types.h>
 #include <set>
 
-#include <FatUtils.h>
+#include <fatutils.h>
 #include "fathelper.h"
 #include "fatentry.h"
 
@@ -242,6 +242,7 @@ void FatHelper::listar(vector<FatEntry> &entries)
             name += "/";
         }
 
+        printf(" %s ", prettyDate(entry.changeDate).c_str());
         printf(" %-30s", name.c_str());
 
         printf(" c=%u", entry.cluster);
@@ -523,7 +524,7 @@ vector<FatEntry> FatHelper::getEntries(unsigned int cluster, int *clusters, bool
 
         if (!isValid) {
             if (badEntries>foundEntries) {
-                cerr << "! Entries don't look good, this is maybe not a directory" << endl;
+                cerr << "! Al parecer esto no es un directorio" << endl;
                 return vector<FatEntry>();
           }
         }

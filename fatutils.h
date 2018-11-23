@@ -52,7 +52,29 @@ static inline string prettySize(unsigned long long bytes)
     return oss.str();
 }
 
-// split a string into vector
+// mejora la lectura de las fechas
+static inline string prettyDate(char *date)
+{
+    int H = FAT_READ_SHORT(date, 0);
+    int D = FAT_READ_SHORT(date, 2);
+    int h, i, s;
+    int y, m, d;
+
+    s = 2*(H&0x1f);
+    i = (H>>5)&0x3f;
+    h = (H>>11)&0x1f;
+
+    d = D&0x1f;
+    m = (D>>5)&0xf;
+    y = 1980+((D>>9)&0x7f);
+
+    char buffer[128];
+    sprintf(buffer, "%d/%d/%04d %02d:%02d:%02d", d, m, y, h, i, s);
+
+    return string(buffer);
+}
+
+// divide un string en un vector
 static inline vector<string> &split(const string &s, char delim, vector<string> &elems) {
     stringstream ss(s);
     string item;
@@ -72,4 +94,5 @@ static inline std::string strtolower(std::string myString)
 
   return myString;
 }
+
 #endif
